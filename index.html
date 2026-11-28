@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Fake Tweet Webメーカー | ツイート風画像をブラウザで作成</title>
+<meta name="description" content="X（旧Twitter）風の投稿カード画像をブラウザだけで作れるメーカー。Bot版「Fake Tweet Bot」と同じレイアウトをCanvasで再現。">
+<link rel="manifest" href="/manifest.webmanifest">
+<meta name="theme-color" content="#0a0f1c">
+<link rel="apple-touch-icon" href="/icons/icon-192.png">
+<script>
+try {
+  var savedTheme = localStorage.getItem("nisetsui-theme");
+  if (savedTheme === "light" || savedTheme === "dark") {
+    document.documentElement.setAttribute("data-theme", savedTheme);
+  }
+} catch (e) { /* テーマ保存が使えない環境ではダークを既定にする */ }
+</script>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<!-- 🧭 トップバー -->
+<nav class="topbar">
+  <div class="wrap topbar-in">
+    <a class="brand" href="#top">Fake Tweet Webメーカー</a>
+    <span class="topbar-links">
+      <button type="button" class="theme-toggle" id="themeToggle" aria-label="テーマ切り替え">🌙</button>
+    </span>
+  </div>
+</nav>
+
+<!-- 🏠 ヘッダー -->
+<header class="site-header" id="top">
+  <div class="wrap">
+    <p class="eyebrow">FAKE TWEET — WEB</p>
+    <h1>Fake Tweet Webメーカー</h1>
+    <p class="lead">表示名・ユーザー名・本文を入れるだけで、X（旧Twitter）風の投稿カード画像（PNG）が作れます。Bot版「Fake Tweet Bot」と同じレイアウトを、ブラウザのCanvasで再現しています。</p>
+    <p class="privacy-note">🔒 すべてブラウザ内（クライアントサイド）で処理します。アップロードした画像や入力内容がサーバーに送信されることはありません。※隠し機能でDiscordアイコン取得を使う場合のみ、入力したユーザーIDが照会先の外部APIに送られます。</p>
+  </div>
+</header>
+
+<!-- 📄 メイン -->
+<main class="wrap layout">
+  <section class="panel form-panel" aria-label="入力フォーム">
+    <h2>1. アバター画像</h2>
+    <div id="dropZone" class="drop-zone" tabindex="0" role="button" aria-label="アバター画像をアップロード">
+      <div class="drop-zone-inner">
+        <div id="avatarPreview" class="avatar-preview" aria-hidden="true"><span id="avatarPreviewInitial">？</span></div>
+        <p class="drop-title">ここに画像をドラッグ＆ドロップ</p>
+        <p class="drop-sub">またはクリックしてファイルを選択（PNG / JPEG / WebP など）</p>
+        <p class="drop-sub small">未指定の場合は、表示名の頭文字で自動生成します</p>
+      </div>
+      <input type="file" id="avatarInput" accept="image/*" hidden>
+    </div>
+    <div class="row-actions">
+      <button type="button" id="clearAvatarBtn" class="btn btn-ghost" disabled>アバターをクリア</button>
+      <span id="avatarFileName" class="file-name">未選択（プレースホルダ使用）</span>
+    </div>
+
+    <h2>2. 発言者</h2>
+    <label class="field">
+      <span>表示名</span>
+      <input type="text" id="displayName" placeholder="例: まぶ" autocomplete="off">
+    </label>
+    <label class="field">
+      <span>ユーザー名（@なしで入力しても自動で付けます）</span>
+      <div class="username-wrap">
+        <span class="at">@</span>
+        <input type="text" id="username" placeholder="例: xx_mabu_xx" autocomplete="off">
+      </div>
+    </label>
+
+    <h2>3. 本文とカウント</h2>
+    <label class="field">
+      <span>本文 <span class="muted">（最大300文字）</span></span>
+      <textarea id="tweetText" rows="5" placeholder="例: 新しいWebメーカーを作りました"></textarea>
+      <span class="counter"><span id="charCount">0</span> / 300 文字 <span id="charWarn" class="warn" hidden>— 上限を超えています</span></span>
+    </label>
+    <label class="field">
+      <span>投稿日時</span>
+      <input type="datetime-local" id="tweetDate">
+    </label>
+    <div class="counts-grid">
+      <label class="field">
+        <span>返信</span>
+        <input type="number" id="cntReplies" min="0" placeholder="2">
+      </label>
+      <label class="field">
+        <span>リポスト</span>
+        <input type="number" id="cntRetweets" min="0" placeholder="9">
+      </label>
+      <label class="field">
+        <span>いいね</span>
+        <input type="number" id="cntLikes" min="0" placeholder="37">
+      </label>
+      <label class="field">
+        <span>表示数</span>
+        <input type="number" id="cntViews" min="0" placeholder="1204">
+      </label>
+    </div>
+    <p class="drop-sub small">カウントは空欄にすると控えめな固定値になります</p>
+
+    <div class="actions">
+      <button type="button" id="sampleBtn" class="btn btn-secondary">サンプルで試す</button>
+      <button type="button" id="generateBtn" class="btn btn-primary">画像を生成</button>
+    </div>
+    <p id="statusMsg" class="status" role="status" aria-live="polite">フォントを読み込んでいます…</p>
+
+    <div id="secretPanel" class="secret-panel" hidden>
+      <p class="secret-title">🔑 隠し機能：Discordアイコン取得</p>
+      <p class="secret-desc">Discord のユーザーIDからアイコンを取得して、そのままアバターに設定します。表示名とユーザー名も自動で入ります。照会には外部API（japi.rest）を使うため、入力したユーザーIDがそのAPIに送られます。</p>
+      <div class="secret-row">
+        <input type="text" id="secretUserId" inputmode="numeric" placeholder="ユーザーID（17〜20桁）" autocomplete="off">
+        <button type="button" id="secretFetchBtn" class="btn btn-secondary">取得</button>
+      </div>
+      <p id="secretStatus" class="status" role="status" aria-live="polite"></p>
+      <p id="secretLinks" class="secret-links" hidden><a id="secretAvatarLink" href="#" target="_blank" rel="noopener">アイコン画像を原寸（4096px）で開く</a></p>
+    </div>
+  </section>
+
+  <section class="panel preview-panel" aria-label="プレビュー">
+    <h2>プレビュー</h2>
+    <div class="canvas-wrap">
+      <canvas id="tweetCanvas" width="1200" height="400"></canvas>
+      <p id="emptyHint" class="empty-hint">「画像を生成」を押すと、ここにツイート風カードが表示されます（高さは本文の行数で変わります）</p>
+    </div>
+    <div class="actions">
+      <a id="downloadBtn" class="btn btn-primary disabled" href="#" download="fake-tweet.png" aria-disabled="true">PNGをダウンロード</a>
+      <button type="button" id="regenerateBtn" class="btn btn-ghost" disabled>再生成</button>
+    </div>
+    <ul class="spec-list">
+      <li>画像は幅1200pxのPNG（高さは本文の行数に応じて自動）</li>
+      <li>レイアウト・配色はBot版「Fake Tweet Bot」と同一</li>
+      <li>実在の投稿ではありません。パロディ・ネタ用途でどうぞ</li>
+    </ul>
+  </section>
+</main>
+
+<!-- 📎 フッター -->
+<footer class="site-footer wrap">
+  <p id="secretTrigger">Fake Tweet Webメーカー / 元実装: Discord Bot「Fake Tweet Bot」と同一レイアウト</p>
+</footer>
+
+<script src="js/render-core.js"></script>
+<script src="app.js"></script>
+<script>
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("/sw.js").catch(() => {});
+  });
+}
+</script>
+</body>
+</html>

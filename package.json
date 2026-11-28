@@ -1,0 +1,1 @@
+{"description":"Fake Tweet Webメーカー｜X（旧Twitter）風の投稿カード画像をブラウザだけで作れるメーカー","name":"nisetsui","private":true,"scripts":{"check":"node --check app.js && node --check js/render-core.js && node --check sw.js","test":"node --test test/render-core.test.js"},"version":"1.0.0"}
